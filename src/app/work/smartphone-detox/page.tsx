@@ -1,1352 +1,1185 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
-/* ───────────────────────── data ───────────────────────── */
+/* ─────────────── animated number ─────────────── */
 
-const screenTimeData = {
-  intervention: [
-    { label: "T1\nBaseline", value: 314 },
-    { label: "T2\nIntervention", value: 161 },
-    { label: "T3\nFollow-up", value: 265 },
-  ],
-  delayed: [
-    { label: "T1\nBaseline", value: 336 },
-    { label: "T2\nControl", value: 322 },
-    { label: "T3\nIntervention", value: 190 },
-  ],
-};
+function AnimatedNumber({
+  value,
+  suffix = "",
+  prefix = "",
+  duration = 1200,
+}: {
+  value: number;
+  suffix?: string;
+  prefix?: string;
+  duration?: number;
+}) {
+  const [display, setDisplay] = useState(0);
+  useEffect(() => {
+    let start = 0;
+    const step = (ts: number) => {
+      if (!start) start = ts;
+      const progress = Math.min((ts - start) / duration, 1);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      setDisplay(Math.round(eased * value));
+      if (progress < 1) requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+  }, [value, duration]);
+  return (
+    <span>
+      {prefix}
+      {display}
+      {suffix}
+    </span>
+  );
+}
 
-const psychOutcomes = [
-  {
-    name: "Subjective Well-Being",
-    key: "swb",
-    unit: "index",
-    intervention: [
-      { label: "T1", value: 4.65 },
-      { label: "T2", value: 5.05 },
-      { label: "T3", value: 4.89 },
-    ],
-    delayed: [
-      { label: "T1", value: 4.45 },
-      { label: "T2", value: 4.54 },
-      { label: "T3", value: 4.93 },
-    ],
-    effectSize: 0.45,
-    pValue: "< 0.001",
-  },
-  {
-    name: "Mental Health",
-    key: "mh",
-    unit: "index (higher = better)",
-    intervention: [
-      { label: "T1", value: 4.58 },
-      { label: "T2", value: 5.22 },
-      { label: "T3", value: 5.08 },
-    ],
-    delayed: [
-      { label: "T1", value: 4.45 },
-      { label: "T2", value: 4.49 },
-      { label: "T3", value: 5.11 },
-    ],
-    effectSize: 0.56,
-    pValue: "< 0.001",
-  },
-  {
-    name: "Sustained Attention (d′)",
-    key: "att",
-    unit: "d-prime",
-    intervention: [
-      { label: "T1", value: 2.75 },
-      { label: "T2", value: 2.91 },
-      { label: "T3", value: 2.85 },
-    ],
-    delayed: [
-      { label: "T1", value: 2.85 },
-      { label: "T2", value: 2.81 },
-      { label: "T3", value: 3.0 },
-    ],
-    effectSize: 0.23,
-    pValue: "< 0.001",
-  },
-];
+/* ─────────────── donut chart ─────────────── */
 
-const mediators = [
-  { label: "Offline World Time", dz: 0.7, direction: "up" as const },
-  { label: "Self-Control", dz: 0.66, direction: "up" as const },
-  { label: "Media Consumption", dz: 0.41, direction: "down" as const },
-  { label: "Social Connectedness", dz: 0.29, direction: "up" as const },
-  { label: "Sleep", dz: 0.14, direction: "up" as const },
-];
+function DonutChart({
+  percentage,
+  size = 180,
+  strokeWidth = 14,
+  color = "#0d9488",
+  label,
+  sublabel,
+}: {
+  percentage: number;
+  size?: number;
+  strokeWidth?: number;
+  color?: string;
+  label: string;
+  sublabel?: string;
+}) {
+  const radius = (size - strokeWidth) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const offset = circumference * (1 - percentage / 100);
 
-const complianceFunnel = [
-  { label: "Committed", value: 467 },
-  { label: "Set up app", value: 266 },
-  { label: "Fully compliant", value: 119 },
-];
+  return (
+    <div className="flex flex-col items-center">
+      <svg width={size} height={size} className="-rotate-90">
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          fill="none"
+          stroke="#f1f5f9"
+          strokeWidth={strokeWidth}
+        />
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          fill="none"
+          stroke={color}
+          strokeWidth={strokeWidth}
+          strokeDasharray={circumference}
+          strokeDashoffset={offset}
+          strokeLinecap="round"
+          className="transition-all duration-1000 ease-out"
+        />
+      </svg>
+      <div className="-mt-[116px] mb-[46px] text-center">
+        <p className="text-3xl font-bold text-slate-800">
+          {percentage}%
+        </p>
+      </div>
+      <p className="mt-1 text-center text-sm font-semibold text-slate-700">
+        {label}
+      </p>
+      {sublabel && (
+        <p className="mt-0.5 text-center text-xs text-slate-400">
+          {sublabel}
+        </p>
+      )}
+    </div>
+  );
+}
 
-const contextComparisons = [
-  {
-    label: "This intervention\non depression",
-    value: 0.56,
-    color: "#14b8a6",
-  },
-  {
-    label: "Antidepressants\n(meta-analysis)",
-    value: 0.32,
-    color: "#6b7280",
-  },
-  {
-    label: "Cognitive behavioral\ntherapy (meta)",
-    value: 0.56,
-    color: "#6b7280",
-  },
-];
+/* ─────────────── pill stat ─────────────── */
 
-const moodTimeline = {
-  intervention: [6.3, 6.4, 6.5, 6.55, 6.6, 6.7, 6.75, 6.8],
-  delayed: [6.1, 6.05, 6.0, 6.0, 5.95, 6.0, 6.05, 6.0],
-  phase2intervention: [6.8, 6.75, 6.78, 6.76, 6.75, 6.78, 6.74, 6.76],
-  phase2delayed: [6.0, 6.1, 6.15, 6.2, 6.3, 6.35, 6.45, 6.55],
-};
+function PillStat({
+  value,
+  label,
+  color = "bg-teal-50 text-teal-700",
+}: {
+  value: string;
+  label: string;
+  color?: string;
+}) {
+  return (
+    <div className="text-center">
+      <span
+        className={`inline-block rounded-full px-5 py-2 text-xl font-bold ${color}`}
+      >
+        {value}
+      </span>
+      <p className="mt-2 text-sm text-slate-500">{label}</p>
+    </div>
+  );
+}
 
-/* ───────────────────── chart helpers ───────────────────── */
+/* ─────────────── simple horizontal bar ─────────────── */
 
-function BarChart({
-  data,
-  maxVal,
+function SimpleBar({
+  label,
+  value,
+  maxValue,
+  unit,
   color,
-  height = 180,
+  annotation,
 }: {
-  data: { label: string; value: number }[];
-  maxVal: number;
+  label: string;
+  value: number;
+  maxValue: number;
+  unit: string;
   color: string;
-  height?: number;
+  annotation?: string;
 }) {
-  const barW = 48;
-  const gap = 32;
-  const totalW = data.length * barW + (data.length - 1) * gap;
-  const padL = 40;
-  const padR = 20;
-  const padT = 20;
-  const padB = 44;
-  const svgW = totalW + padL + padR;
-  const svgH = height + padT + padB;
-  const chartH = height;
-
   return (
-    <svg viewBox={`0 0 ${svgW} ${svgH}`} className="w-full">
-      {/* y-axis gridlines */}
-      {[0, 0.25, 0.5, 0.75, 1].map((pct) => {
-        const y = padT + chartH * (1 - pct);
-        const val = Math.round(maxVal * pct);
-        return (
-          <g key={pct}>
-            <line
-              x1={padL}
-              y1={y}
-              x2={svgW - padR}
-              y2={y}
-              stroke="rgba(255,255,255,0.04)"
-              strokeWidth={1}
-            />
-            <text
-              x={padL - 6}
-              y={y + 3}
-              textAnchor="end"
-              fill="rgba(255,255,255,0.25)"
-              fontSize={9}
-            >
-              {val}
-            </text>
-          </g>
-        );
-      })}
-      {data.map((d, i) => {
-        const barH = (d.value / maxVal) * chartH;
-        const x = padL + i * (barW + gap);
-        const y = padT + chartH - barH;
-        return (
-          <g key={i}>
-            <rect
-              x={x}
-              y={y}
-              width={barW}
-              height={barH}
-              rx={4}
-              fill={color}
-              opacity={0.85}
-            />
-            <text
-              x={x + barW / 2}
-              y={y - 6}
-              textAnchor="middle"
-              fill="white"
-              fontSize={11}
-              fontWeight={600}
-            >
-              {d.value}
-            </text>
-            {d.label.split("\n").map((line, li) => (
-              <text
-                key={li}
-                x={x + barW / 2}
-                y={padT + chartH + 14 + li * 12}
-                textAnchor="middle"
-                fill="rgba(255,255,255,0.4)"
-                fontSize={9}
-              >
-                {line}
-              </text>
-            ))}
-          </g>
-        );
-      })}
-    </svg>
+    <div>
+      <div className="mb-1 flex items-baseline justify-between">
+        <span className="text-sm text-slate-600">{label}</span>
+        <span className="text-lg font-bold text-slate-800">
+          {value} <span className="text-sm font-normal text-slate-400">{unit}</span>
+        </span>
+      </div>
+      <div className="h-8 w-full overflow-hidden rounded-full bg-slate-100">
+        <div
+          className="flex h-full items-center rounded-full transition-all duration-700"
+          style={{
+            width: `${(value / maxValue) * 100}%`,
+            backgroundColor: color,
+          }}
+        />
+      </div>
+      {annotation && (
+        <p className="mt-1 text-xs text-slate-400">{annotation}</p>
+      )}
+    </div>
   );
 }
 
-function LineChart({
-  series,
-  labels,
-  height = 160,
-  yMin,
-  yMax,
+/* ─────────────── icon row (person icons) ─────────────── */
+
+function PersonGrid({
+  total,
+  highlighted,
+  color = "#0d9488",
 }: {
-  series: { data: number[]; color: string; label: string }[];
-  labels: string[];
-  height?: number;
-  yMin: number;
-  yMax: number;
-}) {
-  const padL = 36;
-  const padR = 20;
-  const padT = 16;
-  const padB = 32;
-  const svgW = 360;
-  const svgH = height + padT + padB;
-  const chartW = svgW - padL - padR;
-  const chartH = height;
-
-  const xScale = (i: number) =>
-    padL + (i / (labels.length - 1)) * chartW;
-  const yScale = (v: number) =>
-    padT + chartH - ((v - yMin) / (yMax - yMin)) * chartH;
-
-  return (
-    <svg viewBox={`0 0 ${svgW} ${svgH}`} className="w-full">
-      {/* grid */}
-      {[0, 0.5, 1].map((pct) => {
-        const val = yMin + (yMax - yMin) * pct;
-        const y = yScale(val);
-        return (
-          <g key={pct}>
-            <line
-              x1={padL}
-              y1={y}
-              x2={svgW - padR}
-              y2={y}
-              stroke="rgba(255,255,255,0.04)"
-            />
-            <text
-              x={padL - 4}
-              y={y + 3}
-              textAnchor="end"
-              fill="rgba(255,255,255,0.25)"
-              fontSize={8}
-            >
-              {val.toFixed(1)}
-            </text>
-          </g>
-        );
-      })}
-      {/* x labels */}
-      {labels.map((l, i) => (
-        <text
-          key={i}
-          x={xScale(i)}
-          y={svgH - 6}
-          textAnchor="middle"
-          fill="rgba(255,255,255,0.35)"
-          fontSize={8}
-        >
-          {l}
-        </text>
-      ))}
-      {/* lines */}
-      {series.map((s) => {
-        const points = s.data.map((v, i) => `${xScale(i)},${yScale(v)}`);
-        return (
-          <g key={s.label}>
-            <polyline
-              points={points.join(" ")}
-              fill="none"
-              stroke={s.color}
-              strokeWidth={2}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-            {s.data.map((v, i) => (
-              <circle
-                key={i}
-                cx={xScale(i)}
-                cy={yScale(v)}
-                r={3}
-                fill={s.color}
-              />
-            ))}
-          </g>
-        );
-      })}
-    </svg>
-  );
-}
-
-function HorizontalBar({
-  items,
-  maxVal,
-}: {
-  items: { label: string; value: number; color: string }[];
-  maxVal: number;
+  total: number;
+  highlighted: number;
+  color?: string;
 }) {
   return (
-    <div className="space-y-4">
-      {items.map((item) => (
-        <div key={item.label}>
-          <div className="mb-1.5 flex items-baseline justify-between">
-            <span className="whitespace-pre-line text-[13px] text-gray-400">
-              {item.label}
-            </span>
-            <span className="ml-3 text-sm font-semibold text-white">
-              d = {item.value.toFixed(2)}
-            </span>
-          </div>
-          <div className="h-3 w-full overflow-hidden rounded-full bg-white/[0.04]">
-            <div
-              className="h-full rounded-full transition-all duration-700"
-              style={{
-                width: `${(item.value / maxVal) * 100}%`,
-                backgroundColor: item.color,
-              }}
-            />
-          </div>
-        </div>
+    <div className="flex flex-wrap gap-[3px]">
+      {Array.from({ length: total }).map((_, i) => (
+        <svg key={i} width="14" height="14" viewBox="0 0 16 16">
+          <circle
+            cx="8"
+            cy="5"
+            r="3"
+            fill={i < highlighted ? color : "#e2e8f0"}
+          />
+          <path
+            d="M 2 14 Q 2 9 8 9 Q 14 9 14 14"
+            fill={i < highlighted ? color : "#e2e8f0"}
+          />
+        </svg>
       ))}
     </div>
   );
 }
 
-/* ───────────────────── page component ─────────────────── */
+/* ─────────────── page ─────────────── */
 
 export default function SmartphoneDetoxStudy() {
-  const [activeOutcome, setActiveOutcome] = useState(0);
-  const outcome = psychOutcomes[activeOutcome];
+  const [activeSection] = useState(0);
 
   return (
-    <main className="min-h-screen bg-surface-0 text-gray-100">
-      {/* Nav bar */}
-      <nav className="fixed top-0 z-50 w-full border-b border-white/5 bg-surface-0/80 backdrop-blur-xl">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
-          <a
-            href="/"
-            className="text-lg font-semibold tracking-tight text-white"
-          >
-            Beautiful
-            <span className="font-normal text-brand-400">Data</span>
+    <div
+      className="min-h-screen"
+      style={{ backgroundColor: "#fafbfc", color: "#1e293b" }}
+    >
+      {/* Nav */}
+      <nav
+        className="fixed top-0 z-50 w-full border-b backdrop-blur-lg"
+        style={{
+          backgroundColor: "rgba(250,251,252,0.85)",
+          borderColor: "#e2e8f0",
+        }}
+      >
+        <div className="mx-auto flex max-w-4xl items-center justify-between px-6 py-4">
+          <a href="/" className="text-lg font-semibold text-slate-800">
+            Beautiful<span className="font-normal text-teal-600">Data</span>
           </a>
-          <span className="text-sm text-gray-500">Case Study</span>
+          <span className="text-xs font-medium uppercase tracking-widest text-slate-400">
+            Case Study
+          </span>
         </div>
       </nav>
 
-      {/* Hero */}
-      <section className="relative overflow-hidden px-6 pb-20 pt-32">
-        {/* Decorative glow */}
-        <div className="pointer-events-none absolute left-1/2 top-24 -translate-x-1/2">
-          <div className="h-64 w-96 rounded-full bg-brand-500/[0.06] blur-[100px]" />
-        </div>
-
-        <div className="relative mx-auto max-w-3xl text-center">
-          <p className="text-[13px] font-medium tracking-wide text-brand-500">
-            PNAS Nexus &middot; Castelo et al. 2025
+      {/* ━━━━━ HERO ━━━━━ */}
+      <section className="px-6 pb-16 pt-32">
+        <div className="mx-auto max-w-3xl text-center">
+          <p className="text-sm font-medium text-teal-600">
+            Research Visualization
           </p>
-          <h1 className="mt-4 text-3xl font-light leading-tight tracking-tight sm:text-5xl">
-            Blocking Mobile Internet{" "}
-            <span className="font-semibold">Improves Attention,</span>{" "}
-            <span className="font-semibold">Mental Health &amp; Well-Being</span>
+          <h1 className="mt-4 text-4xl font-extrabold leading-tight tracking-tight text-slate-900 sm:text-5xl">
+            What happens when you turn off
+            <br />
+            your phone&apos;s internet for two weeks?
           </h1>
-          <p className="mx-auto mt-6 max-w-2xl text-[15px] leading-relaxed text-gray-400">
-            A month-long randomized controlled trial (n&nbsp;=&nbsp;467) found
-            that blocking smartphone internet access for two weeks significantly
-            improved sustained attention, mental health, and subjective
-            well-being — with 91% of participants improving on at least one
-            outcome.
+          <p className="mx-auto mt-6 max-w-xl text-lg leading-relaxed text-slate-500">
+            Researchers gave 467 people a simple challenge: block the internet
+            on your smartphone for 14 days. The results were striking.
           </p>
-        </div>
-
-        {/* Key stats strip */}
-        <div className="mx-auto mt-14 grid max-w-4xl grid-cols-2 gap-6 sm:grid-cols-4">
-          {[
-            { value: "467", label: "Participants" },
-            { value: "91%", label: "Improved on ≥1 outcome" },
-            { value: "2 wk", label: "Intervention duration" },
-            { value: "d = 0.56", label: "Mental health effect" },
-          ].map((s) => (
-            <div
-              key={s.label}
-              className="rounded-lg border border-white/[0.06] bg-surface-1 px-5 py-4 text-center"
-            >
-              <p className="text-xl font-semibold tabular-nums text-white">
-                {s.value}
-              </p>
-              <p className="mt-1 text-[12px] text-gray-500">{s.label}</p>
-            </div>
-          ))}
         </div>
       </section>
 
-      <div className="mx-auto max-w-5xl px-6">
-        <div className="h-px w-full bg-white/[0.06]" />
-      </div>
+      {/* ━━━━━ THE BIG NUMBER ━━━━━ */}
+      <section className="px-6 py-16">
+        <div className="mx-auto max-w-3xl">
+          <div
+            className="overflow-hidden rounded-3xl px-8 py-14 text-center"
+            style={{ backgroundColor: "#f0fdfa" }}
+          >
+            <p className="text-8xl font-extrabold text-teal-600 sm:text-9xl">
+              91%
+            </p>
+            <p className="mt-4 text-xl font-medium text-teal-800">
+              of participants improved on at least one outcome
+            </p>
+            <p className="mx-auto mt-3 max-w-md text-sm text-teal-600/70">
+              Well-being, mental health, or the ability to focus — nearly
+              everyone got better at something.
+            </p>
+          </div>
+        </div>
+      </section>
 
-      {/* ─── Study Design ─── */}
-      <section className="px-6 py-20">
-        <div className="mx-auto max-w-5xl">
-          <h2 className="text-2xl font-light tracking-tight sm:text-3xl">
-            Study <span className="font-semibold">Design</span>
+      {/* ━━━━━ SCREEN TIME BEFORE & AFTER ━━━━━ */}
+      <section className="px-6 py-16">
+        <div className="mx-auto max-w-3xl">
+          <h2 className="text-2xl font-bold text-slate-900">
+            Phone use dropped in half
           </h2>
-          <p className="mt-4 max-w-2xl text-[15px] leading-relaxed text-gray-400">
-            A cross-over RCT where the Intervention group blocked mobile
-            internet for weeks 1–2 while the Delayed Intervention (control)
-            group blocked it for weeks 3–4. All participants retained text and
-            call access and could use the internet on other devices.
+          <p className="mt-3 max-w-xl text-base text-slate-500">
+            Participants went from over 5 hours of daily screen time to under
+            3 — and even after the block was lifted, they didn&apos;t fully
+            bounce back.
           </p>
 
-          {/* Timeline diagram */}
-          <div className="mt-10 overflow-x-auto">
-            <svg viewBox="0 0 700 160" className="w-full min-w-[500px]">
-              {/* Row labels */}
-              <text
-                x={10}
-                y={52}
-                fill="rgba(255,255,255,0.5)"
-                fontSize={11}
-              >
-                Intervention
-              </text>
-              <text
-                x={10}
-                y={112}
-                fill="rgba(255,255,255,0.5)"
-                fontSize={11}
-              >
-                Delayed
-              </text>
+          <div className="mt-10 space-y-8">
+            <SimpleBar
+              label="Before the intervention"
+              value={314}
+              maxValue={360}
+              unit="min/day"
+              color="#94a3b8"
+            />
+            <SimpleBar
+              label="During the intervention"
+              value={161}
+              maxValue={360}
+              unit="min/day"
+              color="#0d9488"
+              annotation="49% less daily screen time"
+            />
+            <SimpleBar
+              label="Two weeks after"
+              value={265}
+              maxValue={360}
+              unit="min/day"
+              color="#5eead4"
+              annotation="Still 16% below baseline"
+            />
+          </div>
+        </div>
+      </section>
 
-              {/* Intervention row */}
-              <rect
-                x={130}
-                y={32}
-                width={240}
-                height={30}
-                rx={6}
-                fill="#14b8a6"
-                opacity={0.7}
-              />
-              <text
-                x={250}
-                y={52}
-                textAnchor="middle"
-                fill="white"
-                fontSize={11}
-                fontWeight={600}
-              >
-                Internet Blocked
-              </text>
-              <rect
-                x={380}
-                y={32}
-                width={240}
-                height={30}
-                rx={6}
-                fill="rgba(255,255,255,0.04)"
-                stroke="rgba(255,255,255,0.08)"
-              />
-              <text
-                x={500}
-                y={52}
-                textAnchor="middle"
-                fill="rgba(255,255,255,0.35)"
-                fontSize={11}
-              >
-                Normal Use
-              </text>
+      {/* ━━━━━ THREE BIG WINS ━━━━━ */}
+      <section className="px-6 py-16" style={{ backgroundColor: "#ffffff" }}>
+        <div className="mx-auto max-w-3xl">
+          <h2 className="text-2xl font-bold text-slate-900">
+            Three things got better
+          </h2>
+          <p className="mt-3 max-w-xl text-base text-slate-500">
+            The researchers measured well-being, mental health, and focused
+            attention — all three improved significantly during the internet
+            block.
+          </p>
 
-              {/* Delayed row */}
-              <rect
-                x={130}
-                y={92}
-                width={240}
-                height={30}
-                rx={6}
-                fill="rgba(255,255,255,0.04)"
-                stroke="rgba(255,255,255,0.08)"
-              />
-              <text
-                x={250}
-                y={112}
-                textAnchor="middle"
-                fill="rgba(255,255,255,0.35)"
-                fontSize={11}
+          <div className="mt-10 grid gap-8 sm:grid-cols-3">
+            {/* Well-being */}
+            <div className="rounded-2xl border border-slate-100 bg-white p-6 text-center shadow-sm">
+              <div
+                className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl text-3xl"
+                style={{ backgroundColor: "#fef3c7" }}
               >
-                Normal Use (Control)
-              </text>
-              <rect
-                x={380}
-                y={92}
-                width={240}
-                height={30}
-                rx={6}
-                fill="#f59e0b"
-                opacity={0.6}
-              />
-              <text
-                x={500}
-                y={112}
-                textAnchor="middle"
-                fill="white"
-                fontSize={11}
-                fontWeight={600}
-              >
-                Internet Blocked
-              </text>
+                <span role="img" aria-label="sunshine">&#9728;&#65039;</span>
+              </div>
+              <h3 className="mt-4 text-lg font-bold text-slate-800">
+                Well-Being
+              </h3>
+              <p className="mt-1 text-sm text-slate-500">
+                Life satisfaction and positive feelings went up
+              </p>
+              <div className="mt-4 rounded-xl bg-amber-50 px-4 py-3">
+                <p className="text-2xl font-extrabold text-amber-600">73%</p>
+                <p className="text-xs text-amber-700/70">felt better</p>
+              </div>
+            </div>
 
-              {/* Time markers */}
+            {/* Mental Health */}
+            <div className="rounded-2xl border border-slate-100 bg-white p-6 text-center shadow-sm">
+              <div
+                className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl text-3xl"
+                style={{ backgroundColor: "#dbeafe" }}
+              >
+                <span role="img" aria-label="brain">&#129504;</span>
+              </div>
+              <h3 className="mt-4 text-lg font-bold text-slate-800">
+                Mental Health
+              </h3>
+              <p className="mt-1 text-sm text-slate-500">
+                Less anxiety, depression, and anger
+              </p>
+              <div className="mt-4 rounded-xl bg-blue-50 px-4 py-3">
+                <p className="text-2xl font-extrabold text-blue-600">71%</p>
+                <p className="text-xs text-blue-700/70">improved</p>
+              </div>
+            </div>
+
+            {/* Attention */}
+            <div className="rounded-2xl border border-slate-100 bg-white p-6 text-center shadow-sm">
+              <div
+                className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl text-3xl"
+                style={{ backgroundColor: "#d1fae5" }}
+              >
+                <span role="img" aria-label="target">&#127919;</span>
+              </div>
+              <h3 className="mt-4 text-lg font-bold text-slate-800">
+                Focus
+              </h3>
+              <p className="mt-1 text-sm text-slate-500">
+                Objectively measured ability to sustain attention
+              </p>
+              <div className="mt-4 rounded-xl bg-emerald-50 px-4 py-3">
+                <p className="text-2xl font-extrabold text-emerald-600">59%</p>
+                <p className="text-xs text-emerald-700/70">scored higher</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ━━━━━ STRIKING COMPARISONS ━━━━━ */}
+      <section className="px-6 py-16">
+        <div className="mx-auto max-w-3xl">
+          <h2 className="text-2xl font-bold text-slate-900">
+            How big were the effects?
+          </h2>
+          <p className="mt-3 max-w-xl text-base text-slate-500">
+            To put these numbers in context, researchers compared them to
+            well-known benchmarks. The results surprised even the authors.
+          </p>
+
+          <div className="mt-10 grid gap-6 sm:grid-cols-2">
+            {/* Mental health comparison */}
+            <div className="rounded-2xl border border-slate-100 bg-white p-8 shadow-sm">
+              <p className="text-sm font-semibold uppercase tracking-wider text-slate-400">
+                Mental health improvement
+              </p>
+              <div className="mt-6 space-y-5">
+                <div>
+                  <div className="mb-1 flex items-baseline justify-between">
+                    <span className="text-sm text-slate-600">
+                      This intervention
+                    </span>
+                    <span className="text-sm font-bold text-teal-700">
+                      larger
+                    </span>
+                  </div>
+                  <div className="h-6 overflow-hidden rounded-full bg-slate-100">
+                    <div
+                      className="h-full rounded-full"
+                      style={{
+                        width: "80%",
+                        backgroundColor: "#0d9488",
+                      }}
+                    />
+                  </div>
+                </div>
+                <div>
+                  <div className="mb-1 flex items-baseline justify-between">
+                    <span className="text-sm text-slate-600">
+                      Antidepressants
+                    </span>
+                    <span className="text-sm font-medium text-slate-400">
+                      (meta-analysis)
+                    </span>
+                  </div>
+                  <div className="h-6 overflow-hidden rounded-full bg-slate-100">
+                    <div
+                      className="h-full rounded-full"
+                      style={{
+                        width: "46%",
+                        backgroundColor: "#cbd5e1",
+                      }}
+                    />
+                  </div>
+                </div>
+              </div>
+              <p className="mt-5 text-xs leading-relaxed text-slate-400">
+                The effect on depression symptoms was larger than the average
+                effect of antidepressant medication across clinical trials.
+              </p>
+            </div>
+
+            {/* Attention comparison */}
+            <div className="rounded-2xl border border-slate-100 bg-white p-8 shadow-sm">
+              <p className="text-sm font-semibold uppercase tracking-wider text-slate-400">
+                Attention improvement
+              </p>
+              <div className="mt-6 flex items-center gap-6">
+                <div className="text-center">
+                  <div
+                    className="flex h-20 w-20 items-center justify-center rounded-full"
+                    style={{ backgroundColor: "#f0fdfa" }}
+                  >
+                    <span className="text-3xl font-extrabold text-teal-600">
+                      10
+                    </span>
+                  </div>
+                  <p className="mt-2 text-sm font-semibold text-slate-600">
+                    years
+                  </p>
+                </div>
+                <p className="text-sm leading-relaxed text-slate-500">
+                  The boost in sustained attention was equivalent to reversing
+                  <strong className="text-slate-700">
+                    {" "}10 years of age-related decline
+                  </strong>
+                  , as measured by the same cognitive test.
+                </p>
+              </div>
+              <div className="mt-6 rounded-xl bg-slate-50 px-5 py-4">
+                <p className="text-xs leading-relaxed text-slate-500">
+                  It also closed about <strong className="text-slate-700">25%</strong> of the gap
+                  between healthy adults and those with ADHD on the same
+                  attention task.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ━━━━━ HOW PEOPLE SPENT THEIR TIME ━━━━━ */}
+      <section className="px-6 py-16" style={{ backgroundColor: "#ffffff" }}>
+        <div className="mx-auto max-w-3xl">
+          <h2 className="text-2xl font-bold text-slate-900">
+            Where did the time go?
+          </h2>
+          <p className="mt-3 max-w-xl text-base text-slate-500">
+            Without mobile internet, people didn&apos;t just sit around. They
+            replaced screen time with activities that are known to improve
+            well-being.
+          </p>
+
+          <div className="mt-10 grid gap-5 sm:grid-cols-2">
+            {/* Went up */}
+            <div className="rounded-2xl bg-teal-50/60 p-6">
+              <p className="mb-5 text-xs font-bold uppercase tracking-widest text-teal-700">
+                Went up
+              </p>
               {[
-                { x: 130, label: "T1" },
-                { x: 370, label: "T2" },
-                { x: 620, label: "T3" },
-              ].map((t) => (
-                <g key={t.label}>
-                  <line
-                    x1={t.x}
-                    y1={24}
-                    x2={t.x}
-                    y2={132}
-                    stroke="rgba(255,255,255,0.12)"
-                    strokeDasharray="3,3"
+                { activity: "Socializing in person", icon: "&#128101;" },
+                { activity: "Exercise", icon: "&#127939;" },
+                { activity: "Time in nature", icon: "&#127795;" },
+                { activity: "Hobbies", icon: "&#127912;" },
+                { activity: "Reading books", icon: "&#128218;" },
+                { activity: "Sleep", icon: "&#128164;" },
+              ].map((item) => (
+                <div
+                  key={item.activity}
+                  className="flex items-center gap-3 border-b border-teal-100 py-3 last:border-0"
+                >
+                  <span
+                    className="text-xl"
+                    dangerouslySetInnerHTML={{ __html: item.icon }}
+                  />
+                  <span className="text-sm font-medium text-teal-800">
+                    {item.activity}
+                  </span>
+                  <svg
+                    className="ml-auto h-4 w-4 text-teal-500"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={3}
+                  >
+                    <path d="M5 15l7-7 7 7" />
+                  </svg>
+                </div>
+              ))}
+            </div>
+
+            {/* Went down */}
+            <div className="rounded-2xl bg-slate-50 p-6">
+              <p className="mb-5 text-xs font-bold uppercase tracking-widest text-slate-500">
+                Went down
+              </p>
+              {[
+                { activity: "Watching YouTube", icon: "&#128250;" },
+                { activity: "Scrolling news", icon: "&#128240;" },
+                { activity: "Watching TV & movies", icon: "&#127910;" },
+              ].map((item) => (
+                <div
+                  key={item.activity}
+                  className="flex items-center gap-3 border-b border-slate-200 py-3 last:border-0"
+                >
+                  <span
+                    className="text-xl"
+                    dangerouslySetInnerHTML={{ __html: item.icon }}
+                  />
+                  <span className="text-sm font-medium text-slate-600">
+                    {item.activity}
+                  </span>
+                  <svg
+                    className="ml-auto h-4 w-4 text-slate-400"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={3}
+                  >
+                    <path d="M19 9l-7 7-7-7" />
+                  </svg>
+                </div>
+              ))}
+              <div className="mt-5 rounded-xl bg-white px-4 py-3">
+                <p className="text-xs text-slate-400">
+                  Texting and calling were <strong>not</strong> blocked and
+                  stayed the same — the intervention only targeted internet
+                  access.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ━━━━━ THE CHAIN: WHY IT WORKS ━━━━━ */}
+      <section className="px-6 py-16">
+        <div className="mx-auto max-w-3xl">
+          <h2 className="text-2xl font-bold text-slate-900">
+            The chain reaction
+          </h2>
+          <p className="mt-3 max-w-xl text-base text-slate-500">
+            Blocking mobile internet triggered a cascade of positive changes.
+            Each link in the chain contributed to better well-being and mental
+            health.
+          </p>
+
+          <div className="mt-10">
+            <svg viewBox="0 0 700 220" className="w-full">
+              {/* Step 1 */}
+              <rect
+                x={0}
+                y={75}
+                width={120}
+                height={70}
+                rx={16}
+                fill="#f0fdfa"
+                stroke="#99f6e4"
+                strokeWidth={1.5}
+              />
+              <text
+                x={60}
+                y={105}
+                textAnchor="middle"
+                fill="#0f766e"
+                fontSize={12}
+                fontWeight={700}
+              >
+                Block mobile
+              </text>
+              <text
+                x={60}
+                y={122}
+                textAnchor="middle"
+                fill="#0f766e"
+                fontSize={12}
+                fontWeight={700}
+              >
+                internet
+              </text>
+
+              {/* Arrow 1 */}
+              <path
+                d="M 125 110 L 160 110"
+                stroke="#99f6e4"
+                strokeWidth={2}
+                markerEnd="url(#arrowhead)"
+              />
+
+              {/* Step 2 */}
+              <rect
+                x={165}
+                y={75}
+                width={120}
+                height={70}
+                rx={16}
+                fill="#fff7ed"
+                stroke="#fed7aa"
+                strokeWidth={1.5}
+              />
+              <text
+                x={225}
+                y={100}
+                textAnchor="middle"
+                fill="#9a3412"
+                fontSize={11}
+                fontWeight={600}
+              >
+                Screen time
+              </text>
+              <text
+                x={225}
+                y={117}
+                textAnchor="middle"
+                fill="#9a3412"
+                fontSize={11}
+                fontWeight={600}
+              >
+                drops 49%
+              </text>
+              <text
+                x={225}
+                y={134}
+                textAnchor="middle"
+                fill="#c2410c"
+                fontSize={10}
+              >
+                314 → 161 min
+              </text>
+
+              {/* Arrow 2 */}
+              <path
+                d="M 290 110 L 325 110"
+                stroke="#fed7aa"
+                strokeWidth={2}
+                markerEnd="url(#arrowhead2)"
+              />
+
+              {/* Step 3: branch */}
+              {[
+                { y: 10, label: "More time outdoors", fill: "#d1fae5", stroke: "#6ee7b7", textColor: "#065f46" },
+                { y: 70, label: "Better self-control", fill: "#e0e7ff", stroke: "#a5b4fc", textColor: "#3730a3" },
+                { y: 130, label: "Stronger social ties", fill: "#fce7f3", stroke: "#f9a8d4", textColor: "#9d174d" },
+                { y: 190, label: "More sleep", fill: "#fef9c3", stroke: "#fde047", textColor: "#854d0e" },
+              ].map((item, i) => (
+                <g key={i}>
+                  <path
+                    d={`M 330 110 Q 345 ${item.y + 22} 360 ${item.y + 22}`}
+                    fill="none"
+                    stroke="#e2e8f0"
+                    strokeWidth={1.5}
+                  />
+                  <rect
+                    x={360}
+                    y={item.y}
+                    width={140}
+                    height={44}
+                    rx={12}
+                    fill={item.fill}
+                    stroke={item.stroke}
+                    strokeWidth={1}
                   />
                   <text
-                    x={t.x}
-                    y={150}
+                    x={430}
+                    y={item.y + 27}
                     textAnchor="middle"
-                    fill="rgba(255,255,255,0.5)"
+                    fill={item.textColor}
                     fontSize={11}
                     fontWeight={600}
                   >
-                    {t.label}
+                    {item.label}
                   </text>
+                  <path
+                    d={`M 500 ${item.y + 22} Q 520 ${item.y + 22} 540 110`}
+                    fill="none"
+                    stroke="#e2e8f0"
+                    strokeWidth={1.5}
+                  />
                 </g>
               ))}
+
+              {/* Arrow 3 */}
+              <path
+                d="M 545 110 L 570 110"
+                stroke="#99f6e4"
+                strokeWidth={2}
+                markerEnd="url(#arrowhead)"
+              />
+
+              {/* Step 4 */}
+              <rect
+                x={575}
+                y={75}
+                width={120}
+                height={70}
+                rx={16}
+                fill="#0d9488"
+              />
+              <text
+                x={635}
+                y={105}
+                textAnchor="middle"
+                fill="white"
+                fontSize={12}
+                fontWeight={700}
+              >
+                Better mental
+              </text>
+              <text
+                x={635}
+                y={122}
+                textAnchor="middle"
+                fill="white"
+                fontSize={12}
+                fontWeight={700}
+              >
+                health & SWB
+              </text>
+
+              {/* Arrowhead defs */}
+              <defs>
+                <marker
+                  id="arrowhead"
+                  viewBox="0 0 10 10"
+                  refX={10}
+                  refY={5}
+                  markerWidth={6}
+                  markerHeight={6}
+                  orient="auto"
+                >
+                  <path d="M 0 0 L 10 5 L 0 10 z" fill="#99f6e4" />
+                </marker>
+                <marker
+                  id="arrowhead2"
+                  viewBox="0 0 10 10"
+                  refX={10}
+                  refY={5}
+                  markerWidth={6}
+                  markerHeight={6}
+                  orient="auto"
+                >
+                  <path d="M 0 0 L 10 5 L 0 10 z" fill="#fed7aa" />
+                </marker>
+              </defs>
             </svg>
           </div>
         </div>
       </section>
 
-      <div className="mx-auto max-w-5xl px-6">
-        <div className="h-px w-full bg-white/[0.06]" />
-      </div>
-
-      {/* ─── Screen Time Impact ─── */}
-      <section className="px-6 py-20">
-        <div className="mx-auto max-w-5xl">
-          <h2 className="text-2xl font-light tracking-tight sm:text-3xl">
-            Screen Time <span className="font-semibold">Impact</span>
+      {/* ━━━━━ WHO BENEFITS MOST ━━━━━ */}
+      <section className="px-6 py-16" style={{ backgroundColor: "#ffffff" }}>
+        <div className="mx-auto max-w-3xl">
+          <h2 className="text-2xl font-bold text-slate-900">
+            Who benefited the most?
           </h2>
-          <p className="mt-4 max-w-2xl text-[15px] leading-relaxed text-gray-400">
-            Average daily smartphone screen time (minutes) dropped dramatically
-            during the intervention period. Even after the block was lifted,
-            screen time remained lower than baseline.
+          <p className="mt-3 max-w-xl text-base text-slate-500">
+            People who felt the most &ldquo;Fear of Missing Out&rdquo; (FoMO)
+            before the study saw the biggest improvements — perhaps because the
+            phone itself was fueling that anxiety.
           </p>
 
-          <div className="mt-10 grid gap-8 md:grid-cols-2">
-            <div className="rounded-xl border border-white/[0.06] bg-surface-1 p-6">
-              <p className="mb-4 text-[13px] font-medium text-brand-500">
-                Intervention Group
-              </p>
-              <BarChart
-                data={screenTimeData.intervention}
-                maxVal={400}
-                color="#14b8a6"
-              />
-              <p className="mt-2 text-center text-[11px] text-gray-600">
-                &minus;49% screen time at T2 (d<sub>z</sub> = 2.22)
-              </p>
-            </div>
-            <div className="rounded-xl border border-white/[0.06] bg-surface-1 p-6">
-              <p className="mb-4 text-[13px] font-medium text-accent-400">
-                Delayed Intervention Group
-              </p>
-              <BarChart
-                data={screenTimeData.delayed}
-                maxVal={400}
-                color="#f59e0b"
-              />
-              <p className="mt-2 text-center text-[11px] text-gray-600">
-                &minus;43% screen time at T3 (d<sub>z</sub> = 2.39)
-              </p>
-            </div>
-          </div>
-        </div>
-      </section>
+          <div className="mt-10 rounded-2xl border border-slate-100 bg-white p-8 shadow-sm">
+            <div className="flex flex-col items-center gap-8 sm:flex-row">
+              <div className="w-full sm:w-1/2">
+                <svg viewBox="0 0 300 180" className="w-full">
+                  {/* Gradient bar */}
+                  <defs>
+                    <linearGradient id="fomo-bar" x1="0" y1="0" x2="1" y2="0">
+                      <stop offset="0%" stopColor="#ccfbf1" />
+                      <stop offset="100%" stopColor="#0d9488" />
+                    </linearGradient>
+                  </defs>
 
-      <div className="mx-auto max-w-5xl px-6">
-        <div className="h-px w-full bg-white/[0.06]" />
-      </div>
+                  {/* Axis */}
+                  <line
+                    x1={30}
+                    y1={130}
+                    x2={270}
+                    y2={130}
+                    stroke="#e2e8f0"
+                    strokeWidth={1}
+                  />
+                  <text x={30} y={155} fill="#94a3b8" fontSize={10}>
+                    Low FoMO
+                  </text>
+                  <text x={270} y={155} textAnchor="end" fill="#94a3b8" fontSize={10}>
+                    High FoMO
+                  </text>
 
-      {/* ─── Psychological Outcomes ─── */}
-      <section className="px-6 py-20">
-        <div className="mx-auto max-w-5xl">
-          <h2 className="text-2xl font-light tracking-tight sm:text-3xl">
-            Psychological <span className="font-semibold">Outcomes</span>
-          </h2>
-          <p className="mt-4 max-w-2xl text-[15px] leading-relaxed text-gray-400">
-            All three preregistered outcomes improved significantly during the
-            intervention. Select an outcome to explore the cross-over pattern.
-          </p>
+                  {/* Rising line */}
+                  <path
+                    d="M 40 110 Q 150 95 260 40"
+                    fill="none"
+                    stroke="#0d9488"
+                    strokeWidth={3}
+                    strokeLinecap="round"
+                  />
 
-          {/* Outcome selector */}
-          <div className="mt-8 flex flex-wrap gap-2">
-            {psychOutcomes.map((o, i) => (
-              <button
-                key={o.key}
-                onClick={() => setActiveOutcome(i)}
-                className={`rounded-lg border px-4 py-2 text-[13px] font-medium transition-all ${
-                  i === activeOutcome
-                    ? "border-brand-500/40 bg-brand-500/10 text-brand-400"
-                    : "border-white/[0.06] text-gray-500 hover:text-gray-300"
-                }`}
-              >
-                {o.name}
-              </button>
-            ))}
-          </div>
+                  {/* Confidence band */}
+                  <path
+                    d="M 40 120 Q 150 108 260 55 L 260 25 Q 150 82 40 100 Z"
+                    fill="#0d9488"
+                    opacity={0.08}
+                  />
 
-          {/* Chart area */}
-          <div className="mt-8 rounded-xl border border-white/[0.06] bg-surface-1 p-6 sm:p-8">
-            <div className="mb-2 flex items-baseline gap-4">
-              <h3 className="text-lg font-semibold text-white">
-                {outcome.name}
-              </h3>
-              <span className="text-[12px] text-gray-600">
-                Effect: d<sub>z</sub> = {outcome.effectSize} (p{" "}
-                {outcome.pValue})
-              </span>
-            </div>
+                  {/* Y label */}
+                  <text
+                    x={15}
+                    y={75}
+                    fill="#94a3b8"
+                    fontSize={9}
+                    transform="rotate(-90, 15, 75)"
+                  >
+                    Improvement
+                  </text>
+                </svg>
+              </div>
 
-            <div className="grid gap-8 md:grid-cols-2">
-              <div>
-                <p className="mb-3 text-[12px] font-medium text-brand-500">
-                  Intervention Group
+              <div className="w-full sm:w-1/2">
+                <p className="text-sm leading-relaxed text-slate-600">
+                  The relationship was consistent: the more FoMO someone felt at
+                  the start, the more their well-being and mental health
+                  improved when mobile internet was blocked.
                 </p>
-                <LineChart
-                  series={[
-                    {
-                      data: outcome.intervention.map((d) => d.value),
-                      color: "#14b8a6",
-                      label: "Intervention",
-                    },
-                  ]}
-                  labels={outcome.intervention.map((d) => d.label)}
-                  yMin={
-                    Math.min(
-                      ...outcome.intervention.map((d) => d.value),
-                      ...outcome.delayed.map((d) => d.value)
-                    ) - 0.2
-                  }
-                  yMax={
-                    Math.max(
-                      ...outcome.intervention.map((d) => d.value),
-                      ...outcome.delayed.map((d) => d.value)
-                    ) + 0.2
-                  }
-                />
-                <div className="mt-1 flex justify-center gap-1">
-                  <span className="inline-block h-2 w-8 rounded-full bg-brand-500/50" />
-                  <span className="text-[10px] text-gray-600">
-                    Blocked T1→T2
-                  </span>
-                </div>
-              </div>
-              <div>
-                <p className="mb-3 text-[12px] font-medium text-accent-400">
-                  Delayed Intervention Group
+                <p className="mt-3 text-sm leading-relaxed text-slate-600">
+                  This held true across the entire range — even people with low
+                  FoMO still benefited, just less dramatically.
                 </p>
-                <LineChart
-                  series={[
-                    {
-                      data: outcome.delayed.map((d) => d.value),
-                      color: "#f59e0b",
-                      label: "Delayed",
-                    },
-                  ]}
-                  labels={outcome.delayed.map((d) => d.label)}
-                  yMin={
-                    Math.min(
-                      ...outcome.intervention.map((d) => d.value),
-                      ...outcome.delayed.map((d) => d.value)
-                    ) - 0.2
-                  }
-                  yMax={
-                    Math.max(
-                      ...outcome.intervention.map((d) => d.value),
-                      ...outcome.delayed.map((d) => d.value)
-                    ) + 0.2
-                  }
-                />
-                <div className="mt-1 flex justify-center gap-1">
-                  <span className="inline-block h-2 w-8 rounded-full bg-accent-400/50" />
-                  <span className="text-[10px] text-gray-600">
-                    Blocked T2→T3
-                  </span>
-                </div>
               </div>
             </div>
           </div>
         </div>
       </section>
 
-      <div className="mx-auto max-w-5xl px-6">
-        <div className="h-px w-full bg-white/[0.06]" />
-      </div>
-
-      {/* ─── Experience Sampling ─── */}
-      <section className="px-6 py-20">
-        <div className="mx-auto max-w-5xl">
-          <h2 className="text-2xl font-light tracking-tight sm:text-3xl">
-            Mood Over <span className="font-semibold">Time</span>
+      {/* ━━━━━ COMPLIANCE ━━━━━ */}
+      <section className="px-6 py-16">
+        <div className="mx-auto max-w-3xl">
+          <h2 className="text-2xl font-bold text-slate-900">
+            Sticking with it was hard
           </h2>
-          <p className="mt-4 max-w-2xl text-[15px] leading-relaxed text-gray-400">
-            Experience sampling via SMS (4&times; per week) revealed
-            progressively improving mood during the intervention that persisted
-            after the block was lifted.
+          <p className="mt-3 max-w-xl text-base text-slate-500">
+            Only about 1 in 4 participants fully complied for the whole two
+            weeks. But here&apos;s the thing: <strong className="text-slate-700">
+            even the non-compliant participants improved</strong>. Just reducing
+            internet use helped.
           </p>
 
-          <div className="mt-10 grid gap-8 md:grid-cols-2">
-            <div className="rounded-xl border border-white/[0.06] bg-surface-1 p-6">
-              <p className="mb-4 text-[13px] font-medium text-gray-400">
-                Phase 1 — Weeks 1–2
-              </p>
-              <LineChart
-                series={[
-                  {
-                    data: moodTimeline.intervention,
-                    color: "#14b8a6",
-                    label: "Intervention (blocked)",
-                  },
-                  {
-                    data: moodTimeline.delayed,
-                    color: "#f59e0b",
-                    label: "Delayed (control)",
-                  },
-                ]}
-                labels={["1", "2", "3", "4", "5", "6", "7", "8"]}
-                yMin={5.7}
-                yMax={7.0}
-              />
-              <div className="mt-3 flex justify-center gap-5">
-                <div className="flex items-center gap-1.5">
-                  <span className="h-2 w-5 rounded-full bg-brand-500" />
-                  <span className="text-[10px] text-gray-500">
-                    Blocked
-                  </span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <span className="h-2 w-5 rounded-full bg-accent-400" />
-                  <span className="text-[10px] text-gray-500">
-                    Control
-                  </span>
-                </div>
-              </div>
-            </div>
-            <div className="rounded-xl border border-white/[0.06] bg-surface-1 p-6">
-              <p className="mb-4 text-[13px] font-medium text-gray-400">
-                Phase 2 — Weeks 3–4
-              </p>
-              <LineChart
-                series={[
-                  {
-                    data: moodTimeline.phase2intervention,
-                    color: "#14b8a6",
-                    label: "Intervention (normal)",
-                  },
-                  {
-                    data: moodTimeline.phase2delayed,
-                    color: "#f59e0b",
-                    label: "Delayed (blocked)",
-                  },
-                ]}
-                labels={["1", "2", "3", "4", "5", "6", "7", "8"]}
-                yMin={5.7}
-                yMax={7.0}
-              />
-              <div className="mt-3 flex justify-center gap-5">
-                <div className="flex items-center gap-1.5">
-                  <span className="h-2 w-5 rounded-full bg-brand-500" />
-                  <span className="text-[10px] text-gray-500">
-                    Post-intervention
-                  </span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <span className="h-2 w-5 rounded-full bg-accent-400" />
-                  <span className="text-[10px] text-gray-500">
-                    Now blocked
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <div className="mx-auto max-w-5xl px-6">
-        <div className="h-px w-full bg-white/[0.06]" />
-      </div>
-
-      {/* ─── Mechanisms ─── */}
-      <section className="px-6 py-20">
-        <div className="mx-auto max-w-5xl">
-          <h2 className="text-2xl font-light tracking-tight sm:text-3xl">
-            Why It <span className="font-semibold">Works</span>
-          </h2>
-          <p className="mt-4 max-w-2xl text-[15px] leading-relaxed text-gray-400">
-            Five mediating factors explain why blocking mobile internet improves
-            well-being and mental health. Changes in time use, social
-            connection, self-control, and sleep fully mediated the effects.
-          </p>
-
-          <div className="mt-10 grid gap-8 md:grid-cols-2">
-            {/* Mediator effect sizes */}
-            <div className="rounded-xl border border-white/[0.06] bg-surface-1 p-6">
-              <p className="mb-5 text-[13px] font-medium text-gray-400">
-                Mediator Effect Sizes (Cohen&apos;s d<sub>z</sub>)
-              </p>
-              <div className="space-y-5">
-                {mediators.map((m) => (
-                  <div key={m.label}>
-                    <div className="mb-1.5 flex items-center justify-between">
-                      <span className="text-[13px] text-gray-300">
-                        {m.direction === "up" ? "↑" : "↓"} {m.label}
-                      </span>
-                      <span className="text-[13px] font-semibold tabular-nums text-white">
-                        {m.dz.toFixed(2)}
-                      </span>
-                    </div>
-                    <div className="h-2.5 w-full overflow-hidden rounded-full bg-white/[0.04]">
-                      <div
-                        className="h-full rounded-full"
-                        style={{
-                          width: `${(m.dz / 0.8) * 100}%`,
-                          backgroundColor:
-                            m.direction === "up" ? "#14b8a6" : "#f59e0b",
-                          opacity: 0.8,
-                        }}
-                      />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Flow diagram */}
-            <div className="rounded-xl border border-white/[0.06] bg-surface-1 p-6">
-              <p className="mb-5 text-[13px] font-medium text-gray-400">
-                Mediation Pathway
-              </p>
-              <svg viewBox="0 0 320 280" className="w-full">
-                {/* Source */}
-                <rect
-                  x={10}
-                  y={110}
-                  width={90}
-                  height={50}
-                  rx={8}
-                  fill="rgba(20,184,166,0.15)"
-                  stroke="rgba(20,184,166,0.3)"
-                />
-                <text
-                  x={55}
-                  y={133}
-                  textAnchor="middle"
-                  fill="#14b8a6"
-                  fontSize={9}
-                  fontWeight={600}
-                >
-                  Block Mobile
-                </text>
-                <text
-                  x={55}
-                  y={146}
-                  textAnchor="middle"
-                  fill="#14b8a6"
-                  fontSize={9}
-                  fontWeight={600}
-                >
-                  Internet
-                </text>
-
-                {/* Mediators */}
-                {[
-                  "Offline Time",
-                  "Self-Control",
-                  "Social Connection",
-                  "↓ Media Use",
-                  "Sleep",
-                ].map((label, i) => {
-                  const y = 20 + i * 52;
-                  return (
-                    <g key={label}>
-                      <line
-                        x1={100}
-                        y1={135}
-                        x2={130}
-                        y2={y + 14}
-                        stroke="rgba(255,255,255,0.08)"
-                      />
-                      <rect
-                        x={130}
-                        y={y}
-                        width={85}
-                        height={28}
-                        rx={6}
-                        fill="rgba(255,255,255,0.04)"
-                        stroke="rgba(255,255,255,0.08)"
-                      />
-                      <text
-                        x={172}
-                        y={y + 18}
-                        textAnchor="middle"
-                        fill="rgba(255,255,255,0.6)"
-                        fontSize={8}
-                      >
-                        {label}
-                      </text>
-                      <line
-                        x1={215}
-                        y1={y + 14}
-                        x2={240}
-                        y2={80}
-                        stroke="rgba(255,255,255,0.08)"
-                      />
-                      <line
-                        x1={215}
-                        y1={y + 14}
-                        x2={240}
-                        y2={188}
-                        stroke="rgba(255,255,255,0.08)"
-                      />
-                    </g>
-                  );
-                })}
-
-                {/* Outcomes */}
-                <rect
-                  x={240}
-                  y={58}
-                  width={70}
-                  height={40}
-                  rx={8}
-                  fill="rgba(20,184,166,0.1)"
-                  stroke="rgba(20,184,166,0.2)"
-                />
-                <text
-                  x={275}
-                  y={76}
-                  textAnchor="middle"
-                  fill="#5eead4"
-                  fontSize={8}
-                  fontWeight={600}
-                >
-                  SWB
-                </text>
-                <text
-                  x={275}
-                  y={88}
-                  textAnchor="middle"
-                  fill="rgba(255,255,255,0.35)"
-                  fontSize={7}
-                >
-                  d = 0.45
-                </text>
-
-                <rect
-                  x={240}
-                  y={165}
-                  width={70}
-                  height={40}
-                  rx={8}
-                  fill="rgba(20,184,166,0.1)"
-                  stroke="rgba(20,184,166,0.2)"
-                />
-                <text
-                  x={275}
-                  y={183}
-                  textAnchor="middle"
-                  fill="#5eead4"
-                  fontSize={8}
-                  fontWeight={600}
-                >
-                  Mental Health
-                </text>
-                <text
-                  x={275}
-                  y={197}
-                  textAnchor="middle"
-                  fill="rgba(255,255,255,0.35)"
-                  fontSize={7}
-                >
-                  d = 0.56
-                </text>
-              </svg>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <div className="mx-auto max-w-5xl px-6">
-        <div className="h-px w-full bg-white/[0.06]" />
-      </div>
-
-      {/* ─── Context: Effect Size Comparisons ─── */}
-      <section className="px-6 py-20">
-        <div className="mx-auto max-w-5xl">
-          <h2 className="text-2xl font-light tracking-tight sm:text-3xl">
-            Putting Effects{" "}
-            <span className="font-semibold">in Context</span>
-          </h2>
-          <p className="mt-4 max-w-2xl text-[15px] leading-relaxed text-gray-400">
-            The intervention&apos;s effect on depression was larger than the
-            meta-analytic effect of antidepressants and comparable to cognitive
-            behavioral therapy. The attention improvement equalled approximately
-            10 years of age-related decline.
-          </p>
-
-          <div className="mt-10 grid gap-8 md:grid-cols-2">
-            <div className="rounded-xl border border-white/[0.06] bg-surface-1 p-6">
-              <p className="mb-5 text-[13px] font-medium text-gray-400">
-                Depression Effect Size Comparison
-              </p>
-              <HorizontalBar items={contextComparisons} maxVal={0.7} />
-            </div>
-
-            <div className="rounded-xl border border-white/[0.06] bg-surface-1 p-6">
-              <p className="mb-5 text-[13px] font-medium text-gray-400">
-                Attention Improvement Equivalents
-              </p>
-              <div className="space-y-6">
-                <div className="flex items-center gap-4">
-                  <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-brand-500/10">
-                    <span className="text-2xl font-bold text-brand-400">
-                      10
+          <div className="mt-10">
+            {/* Funnel */}
+            <div className="mx-auto max-w-sm space-y-3">
+              {[
+                { label: "Signed up", value: 467, pct: 100, color: "#e2e8f0" },
+                {
+                  label: "Installed the blocking app",
+                  value: 266,
+                  pct: 57,
+                  color: "#99f6e4",
+                },
+                {
+                  label: "Fully compliant (14 days)",
+                  value: 119,
+                  pct: 25.5,
+                  color: "#0d9488",
+                },
+              ].map((step) => (
+                <div key={step.label} className="text-center">
+                  <div
+                    className="mx-auto flex h-12 items-center justify-center rounded-2xl"
+                    style={{
+                      width: `${step.pct}%`,
+                      backgroundColor: step.color,
+                      minWidth: "120px",
+                    }}
+                  >
+                    <span
+                      className={`text-sm font-bold ${
+                        step.color === "#0d9488" ? "text-white" : "text-slate-700"
+                      }`}
+                    >
+                      {step.value}
                     </span>
                   </div>
-                  <div>
-                    <p className="text-sm font-medium text-white">
-                      Years of age-related decline
-                    </p>
-                    <p className="text-[12px] text-gray-500">
-                      Equal magnitude of improvement on gradCPT
-                    </p>
-                  </div>
+                  <p className="mt-1 text-xs text-slate-400">{step.label}</p>
                 </div>
-                <div className="flex items-center gap-4">
-                  <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-brand-500/10">
-                    <span className="text-2xl font-bold text-brand-400">
-                      25%
-                    </span>
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-white">
-                      Of ADHD vs. healthy gap
-                    </p>
-                    <p className="text-[12px] text-gray-500">
-                      Approximately a quarter of the difference on gradCPT
-                    </p>
-                  </div>
-                </div>
-              </div>
+              ))}
             </div>
           </div>
         </div>
       </section>
 
-      <div className="mx-auto max-w-5xl px-6">
-        <div className="h-px w-full bg-white/[0.06]" />
-      </div>
-
-      {/* ─── Compliance Funnel ─── */}
-      <section className="px-6 py-20">
-        <div className="mx-auto max-w-5xl">
-          <h2 className="text-2xl font-light tracking-tight sm:text-3xl">
-            Compliance <span className="font-semibold">Funnel</span>
+      {/* ━━━━━ MOOD OVER TIME ━━━━━ */}
+      <section className="px-6 py-16" style={{ backgroundColor: "#ffffff" }}>
+        <div className="mx-auto max-w-3xl">
+          <h2 className="text-2xl font-bold text-slate-900">
+            Mood kept improving day by day
           </h2>
-          <p className="mt-4 max-w-2xl text-[15px] leading-relaxed text-gray-400">
-            Complying was difficult — only 25.5% of participants who committed
-            were fully compliant. Yet significant ITT effects (including
-            non-compliant participants) show that even partial reduction in
-            mobile internet use produces benefits.
+          <p className="mt-3 max-w-xl text-base text-slate-500">
+            Participants texted how they were feeling four times per week.
+            Those blocking the internet felt progressively better — and the
+            benefits <strong className="text-slate-700">persisted even after the block was lifted</strong>.
           </p>
 
-          <div className="mx-auto mt-10 max-w-md">
-            <div className="rounded-xl border border-white/[0.06] bg-surface-1 p-6">
-              {complianceFunnel.map((step, i) => {
-                const widthPct = (step.value / complianceFunnel[0].value) * 100;
+          <div className="mt-10 rounded-2xl border border-slate-100 bg-white p-6 shadow-sm sm:p-8">
+            <svg viewBox="0 0 600 220" className="w-full">
+              {/* Grid */}
+              {[5.8, 6.2, 6.6, 7.0].map((val) => {
+                const y = 190 - ((val - 5.6) / 1.6) * 170;
                 return (
-                  <div key={step.label} className={i > 0 ? "mt-4" : ""}>
-                    <div className="mb-1.5 flex items-baseline justify-between">
-                      <span className="text-[13px] text-gray-400">
-                        {step.label}
-                      </span>
-                      <span className="text-sm font-semibold tabular-nums text-white">
-                        {step.value}
-                      </span>
-                    </div>
-                    <div className="h-8 w-full overflow-hidden rounded-lg bg-white/[0.03]">
-                      <div
-                        className="flex h-full items-center rounded-lg pl-3"
-                        style={{
-                          width: `${widthPct}%`,
-                          backgroundColor:
-                            i === 0
-                              ? "rgba(20,184,166,0.2)"
-                              : i === 1
-                                ? "rgba(20,184,166,0.35)"
-                                : "rgba(20,184,166,0.6)",
-                        }}
-                      >
-                        <span className="text-[11px] font-medium text-white/60">
-                          {widthPct.toFixed(0)}%
-                        </span>
-                      </div>
-                    </div>
-                  </div>
+                  <g key={val}>
+                    <line
+                      x1={45}
+                      y1={y}
+                      x2={570}
+                      y2={y}
+                      stroke="#f1f5f9"
+                      strokeWidth={1}
+                    />
+                    <text
+                      x={38}
+                      y={y + 4}
+                      textAnchor="end"
+                      fill="#94a3b8"
+                      fontSize={10}
+                    >
+                      {val.toFixed(1)}
+                    </text>
+                  </g>
                 );
               })}
-            </div>
-          </div>
-        </div>
-      </section>
 
-      <div className="mx-auto max-w-5xl px-6">
-        <div className="h-px w-full bg-white/[0.06]" />
-      </div>
+              {/* Phase divider */}
+              <line
+                x1={305}
+                y1={10}
+                x2={305}
+                y2={200}
+                stroke="#e2e8f0"
+                strokeWidth={1}
+                strokeDasharray="4,4"
+              />
+              <text x={170} y={210} textAnchor="middle" fill="#94a3b8" fontSize={10}>
+                Weeks 1–2
+              </text>
+              <text x={440} y={210} textAnchor="middle" fill="#94a3b8" fontSize={10}>
+                Weeks 3–4
+              </text>
 
-      {/* ─── Who Benefits ─── */}
-      <section className="px-6 py-20">
-        <div className="mx-auto max-w-5xl">
-          <h2 className="text-2xl font-light tracking-tight sm:text-3xl">
-            Who <span className="font-semibold">Benefits</span>
-          </h2>
-          <p className="mt-4 max-w-2xl text-[15px] leading-relaxed text-gray-400">
-            Most participants benefited. Those with higher baseline Fear of
-            Missing Out (FoMO) saw larger improvements in well-being and mental
-            health — perhaps because mobile internet itself exacerbates FoMO.
-          </p>
-
-          <div className="mt-10 grid gap-6 sm:grid-cols-3">
-            {[
-              {
-                pct: "73.3%",
-                label: "Improved SWB",
-                sub: "75% intervention vs 47% control at T2",
-              },
-              {
-                pct: "70.5%",
-                label: "Improved Mental Health",
-                sub: "68% intervention vs 52% control at T2",
-              },
-              {
-                pct: "58.5%",
-                label: "Improved Attention",
-                sub: "59% intervention vs 46% control at T2",
-              },
-            ].map((item) => (
-              <div
-                key={item.label}
-                className="rounded-xl border border-white/[0.06] bg-surface-1 p-6 text-center"
-              >
-                <p className="text-3xl font-bold tabular-nums text-brand-400">
-                  {item.pct}
-                </p>
-                <p className="mt-2 text-sm font-medium text-white">
-                  {item.label}
-                </p>
-                <p className="mt-1 text-[11px] text-gray-600">{item.sub}</p>
-              </div>
-            ))}
-          </div>
-
-          {/* FoMO moderation */}
-          <div className="mt-8 rounded-xl border border-white/[0.06] bg-surface-1 p-6">
-            <p className="mb-2 text-[13px] font-medium text-gray-400">
-              FoMO Moderation Effect
-            </p>
-            <p className="max-w-2xl text-[14px] leading-relaxed text-gray-300">
-              Higher baseline FoMO predicted larger improvements in SWB
-              (F(1,304) = 8.33, p = .004) and mental health (F(1,304) = 12.43,
-              p &lt; .001). No Johnson–Neyman points in the data — the
-              intervention benefited participants across the entire FoMO
-              spectrum.
-            </p>
-            <div className="mt-4">
-              <svg viewBox="0 0 400 120" className="w-full max-w-md">
-                {/* Gradient bar showing FoMO spectrum */}
-                <defs>
-                  <linearGradient
-                    id="fomo-grad"
-                    x1="0%"
-                    y1="0%"
-                    x2="100%"
-                    y2="0%"
-                  >
-                    <stop offset="0%" stopColor="#14b8a6" stopOpacity={0.2} />
-                    <stop
-                      offset="100%"
-                      stopColor="#14b8a6"
-                      stopOpacity={0.9}
+              {/* Intervention group - Phase 1 (blocked) */}
+              {(() => {
+                const data = [6.3, 6.4, 6.5, 6.55, 6.6, 6.7, 6.75, 6.8];
+                const points = data
+                  .map((v, i) => {
+                    const x = 55 + i * 32;
+                    const y = 190 - ((v - 5.6) / 1.6) * 170;
+                    return `${x},${y}`;
+                  })
+                  .join(" ");
+                return (
+                  <g>
+                    <polyline
+                      points={points}
+                      fill="none"
+                      stroke="#0d9488"
+                      strokeWidth={2.5}
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
                     />
-                  </linearGradient>
-                </defs>
-                <rect
-                  x={40}
-                  y={30}
-                  width={320}
-                  height={30}
-                  rx={6}
-                  fill="url(#fomo-grad)"
+                    {data.map((v, i) => (
+                      <circle
+                        key={i}
+                        cx={55 + i * 32}
+                        cy={190 - ((v - 5.6) / 1.6) * 170}
+                        r={3.5}
+                        fill="#0d9488"
+                      />
+                    ))}
+                  </g>
+                );
+              })()}
+
+              {/* Control group - Phase 1 */}
+              {(() => {
+                const data = [6.1, 6.05, 6.0, 6.0, 5.95, 6.0, 6.05, 6.0];
+                const points = data
+                  .map((v, i) => {
+                    const x = 55 + i * 32;
+                    const y = 190 - ((v - 5.6) / 1.6) * 170;
+                    return `${x},${y}`;
+                  })
+                  .join(" ");
+                return (
+                  <g>
+                    <polyline
+                      points={points}
+                      fill="none"
+                      stroke="#cbd5e1"
+                      strokeWidth={2.5}
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                    {data.map((v, i) => (
+                      <circle
+                        key={i}
+                        cx={55 + i * 32}
+                        cy={190 - ((v - 5.6) / 1.6) * 170}
+                        r={3.5}
+                        fill="#cbd5e1"
+                      />
+                    ))}
+                  </g>
+                );
+              })()}
+
+              {/* Intervention group - Phase 2 (normal, maintained) */}
+              {(() => {
+                const data = [6.8, 6.75, 6.78, 6.76, 6.75, 6.78, 6.74, 6.76];
+                const points = data
+                  .map((v, i) => {
+                    const x = 315 + i * 32;
+                    const y = 190 - ((v - 5.6) / 1.6) * 170;
+                    return `${x},${y}`;
+                  })
+                  .join(" ");
+                return (
+                  <g>
+                    <polyline
+                      points={points}
+                      fill="none"
+                      stroke="#0d9488"
+                      strokeWidth={2.5}
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeDasharray="6,4"
+                    />
+                    {data.map((v, i) => (
+                      <circle
+                        key={i}
+                        cx={315 + i * 32}
+                        cy={190 - ((v - 5.6) / 1.6) * 170}
+                        r={3.5}
+                        fill="#0d9488"
+                        opacity={0.5}
+                      />
+                    ))}
+                  </g>
+                );
+              })()}
+
+              {/* Control group - Phase 2 (now blocked) */}
+              {(() => {
+                const data = [6.0, 6.1, 6.15, 6.2, 6.3, 6.35, 6.45, 6.55];
+                const points = data
+                  .map((v, i) => {
+                    const x = 315 + i * 32;
+                    const y = 190 - ((v - 5.6) / 1.6) * 170;
+                    return `${x},${y}`;
+                  })
+                  .join(" ");
+                return (
+                  <g>
+                    <polyline
+                      points={points}
+                      fill="none"
+                      stroke="#f59e0b"
+                      strokeWidth={2.5}
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                    {data.map((v, i) => (
+                      <circle
+                        key={i}
+                        cx={315 + i * 32}
+                        cy={190 - ((v - 5.6) / 1.6) * 170}
+                        r={3.5}
+                        fill="#f59e0b"
+                      />
+                    ))}
+                  </g>
+                );
+              })()}
+            </svg>
+
+            {/* Legend */}
+            <div className="mt-4 flex flex-wrap justify-center gap-6 text-xs">
+              <div className="flex items-center gap-2">
+                <span className="h-1 w-6 rounded-full bg-teal-600" />
+                <span className="text-slate-500">Internet blocked</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span
+                  className="h-1 w-6 rounded-full"
+                  style={{
+                    background:
+                      "repeating-linear-gradient(90deg, #0d9488 0 4px, transparent 4px 8px)",
+                  }}
                 />
-                <text
-                  x={40}
-                  y={22}
-                  fill="rgba(255,255,255,0.4)"
-                  fontSize={9}
-                >
-                  Low FoMO
-                </text>
-                <text
-                  x={360}
-                  y={22}
-                  textAnchor="end"
-                  fill="rgba(255,255,255,0.4)"
-                  fontSize={9}
-                >
-                  High FoMO
-                </text>
-                <text
-                  x={200}
-                  y={50}
-                  textAnchor="middle"
-                  fill="white"
-                  fontSize={10}
-                  fontWeight={600}
-                >
-                  Benefit increases with FoMO level
-                </text>
-                {/* Arrow */}
-                <path
-                  d="M 100 80 L 300 80"
-                  stroke="rgba(255,255,255,0.15)"
-                  strokeWidth={1}
-                  markerEnd="url(#arrow)"
-                />
-                <defs>
-                  <marker
-                    id="arrow"
-                    viewBox="0 0 10 10"
-                    refX={10}
-                    refY={5}
-                    markerWidth={6}
-                    markerHeight={6}
-                    orient="auto"
-                  >
-                    <path d="M 0 0 L 10 5 L 0 10 z" fill="rgba(255,255,255,0.15)" />
-                  </marker>
-                </defs>
-                <text
-                  x={100}
-                  y={96}
-                  fill="rgba(255,255,255,0.3)"
-                  fontSize={8}
-                >
-                  Smaller improvement
-                </text>
-                <text
-                  x={300}
-                  y={96}
-                  textAnchor="end"
-                  fill="rgba(255,255,255,0.3)"
-                  fontSize={8}
-                >
-                  Larger improvement
-                </text>
-              </svg>
+                <span className="text-slate-500">After block lifted</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="h-1 w-6 rounded-full bg-slate-300" />
+                <span className="text-slate-500">Control (normal use)</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="h-1 w-6 rounded-full bg-amber-400" />
+                <span className="text-slate-500">
+                  Control (now blocked)
+                </span>
+              </div>
             </div>
           </div>
         </div>
       </section>
 
-      <div className="mx-auto max-w-5xl px-6">
-        <div className="h-px w-full bg-white/[0.06]" />
-      </div>
-
-      {/* ─── Methodology ─── */}
-      <section className="px-6 py-20">
-        <div className="mx-auto max-w-5xl">
-          <h2 className="text-2xl font-light tracking-tight sm:text-3xl">
-            Study <span className="font-semibold">Methodology</span>
+      {/* ━━━━━ STUDY AT A GLANCE ━━━━━ */}
+      <section className="px-6 py-16">
+        <div className="mx-auto max-w-3xl">
+          <h2 className="text-2xl font-bold text-slate-900">
+            The study at a glance
           </h2>
 
-          <div className="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="mt-8 grid gap-4 sm:grid-cols-2">
             {[
               {
-                title: "Participants",
-                detail:
-                  "467 iPhone users recruited via Prolific. Average age 32, 63% female. American and Canadian adults.",
+                q: "Who participated?",
+                a: "467 American and Canadian iPhone users, average age 32. Most wanted to reduce their phone use.",
               },
               {
-                title: "Intervention",
-                detail:
-                  'Freedom app blocked all mobile internet (Wi-Fi + cellular data) for 14 days. Texts and calls remained functional — effectively creating a "dumb phone."',
+                q: "What was blocked?",
+                a: "All mobile internet (Wi-Fi and cellular data on the phone). Texts, calls, and internet on laptops/tablets still worked.",
               },
               {
-                title: "Measures",
-                detail:
-                  "SWB (life satisfaction + affect), mental health (DSM-5 cross-cutting symptoms), sustained attention (gradCPT d-prime), and experience sampling via SMS.",
+                q: "How long?",
+                a: "Two weeks of blocked internet, with measurements before, during, and two weeks after.",
               },
               {
-                title: "Design",
-                detail:
-                  "Preregistered cross-over RCT. 3 × 2 mixed ANOVAs (Time × Condition). ITT as primary analysis; TOT as secondary.",
-              },
-              {
-                title: "Compliance Tracking",
-                detail:
-                  "Freedom app's Locked Mode tracked whether the block was active each day. Compliant = block active ≥10 of 14 days.",
-              },
-              {
-                title: "Limitations",
-                detail:
-                  "No active placebo control. Sample was motivated to reduce use. Potential expectancy effects on self-report measures.",
+                q: "How was it tracked?",
+                a: 'The "Freedom" app blocked internet access and tracked whether the block was active each day.',
               },
             ].map((item) => (
-              <div
-                key={item.title}
-                className="rounded-xl border border-white/[0.06] bg-surface-1 p-5"
-              >
-                <p className="text-[13px] font-semibold text-brand-400">
-                  {item.title}
-                </p>
-                <p className="mt-2 text-[13px] leading-relaxed text-gray-400">
-                  {item.detail}
+              <div key={item.q} className="rounded-2xl bg-white p-5 shadow-sm border border-slate-100">
+                <p className="text-sm font-bold text-slate-800">{item.q}</p>
+                <p className="mt-2 text-sm leading-relaxed text-slate-500">
+                  {item.a}
                 </p>
               </div>
             ))}
@@ -1354,84 +1187,45 @@ export default function SmartphoneDetoxStudy() {
         </div>
       </section>
 
-      <div className="mx-auto max-w-5xl px-6">
-        <div className="h-px w-full bg-white/[0.06]" />
-      </div>
-
-      {/* ─── Key Takeaways ─── */}
-      <section className="px-6 py-20">
-        <div className="mx-auto max-w-3xl">
-          <h2 className="text-center text-2xl font-light tracking-tight sm:text-3xl">
-            Key <span className="font-semibold">Takeaways</span>
-          </h2>
-
-          <div className="mt-10 space-y-6">
-            {[
-              "Blocking mobile internet for 2 weeks significantly improved well-being, mental health, and objectively measured sustained attention.",
-              "Even non-compliant participants showed improvements — simply reducing mobile internet use (not eliminating it) produces benefits.",
-              "Benefits were mediated by spending more time in the offline world, improved self-control, stronger social connections, reduced media consumption, and better sleep.",
-              "Those with higher Fear of Missing Out (FoMO) at baseline benefited most — mobile internet itself may exacerbate FoMO.",
-              "Effects persisted after the intervention ended, partly because participants maintained lower screen time post-intervention.",
-            ].map((point, i) => (
-              <div key={i} className="flex gap-4">
-                <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand-500/10 text-[12px] font-semibold text-brand-400">
-                  {i + 1}
-                </span>
-                <p className="text-[15px] leading-relaxed text-gray-300">
-                  {point}
-                </p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ─── Source ─── */}
-      <section className="px-6 pb-20">
-        <div className="mx-auto max-w-3xl rounded-xl border border-white/[0.06] bg-surface-1 p-6 text-center">
-          <p className="text-[13px] text-gray-500">Source</p>
-          <p className="mt-2 text-[14px] leading-relaxed text-gray-300">
+      {/* ━━━━━ BOTTOM LINE ━━━━━ */}
+      <section className="px-6 py-16" style={{ backgroundColor: "#f0fdfa" }}>
+        <div className="mx-auto max-w-2xl text-center">
+          <h2 className="text-2xl font-bold text-teal-900">The bottom line</h2>
+          <p className="mt-4 text-lg leading-relaxed text-teal-800">
+            Constant access to the internet through our phones comes at a real
+            cost to our attention, mental health, and happiness. Even a partial
+            reduction in mobile internet use can help — you don&apos;t have to
+            go cold turkey.
+          </p>
+          <div className="mx-auto mt-8 h-px w-16 bg-teal-300" />
+          <p className="mt-8 text-sm text-teal-600/80">
             Castelo, N., Kushlev, K., Ward, A. F., Esterman, M., &amp; Reiner,
             P. B. (2025). Blocking mobile internet on smartphones improves
             sustained attention, mental health, and subjective well-being.{" "}
-            <span className="italic">PNAS Nexus</span>, 4(2), pgaf017.
+            <em>PNAS Nexus</em>, 4(2), pgaf017.
           </p>
           <a
             href="https://academic.oup.com/pnasnexus/article/4/2/pgaf017/8016017"
             target="_blank"
             rel="noopener noreferrer"
-            className="mt-3 inline-block text-[13px] text-brand-500 transition-colors hover:text-brand-400"
+            className="mt-4 inline-block rounded-full bg-teal-600 px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-teal-700"
           >
-            Read the full paper &rarr;
+            Read the full paper
           </a>
         </div>
       </section>
 
       {/* Footer */}
-      <footer className="px-6 py-12">
-        <div className="mx-auto max-w-5xl">
-          <svg className="mx-auto mb-10 h-4 w-48" viewBox="0 0 192 16">
-            <path
-              d="M 0 0 Q 96 16 192 0"
-              fill="none"
-              stroke="rgba(20,184,166,0.15)"
-              strokeWidth="1"
-            />
-          </svg>
-          <div className="flex flex-col items-center justify-between gap-6 sm:flex-row">
-            <a
-              href="/"
-              className="text-base font-semibold text-white"
-            >
-              Beautiful
-              <span className="font-normal text-brand-400">Data</span>
-            </a>
-            <p className="text-[13px] text-gray-700">
-              &copy; {new Date().getFullYear()}
-            </p>
-          </div>
+      <footer className="border-t border-slate-200 px-6 py-10">
+        <div className="mx-auto flex max-w-4xl items-center justify-between">
+          <a href="/" className="text-base font-semibold text-slate-800">
+            Beautiful<span className="font-normal text-teal-600">Data</span>
+          </a>
+          <p className="text-xs text-slate-400">
+            &copy; {new Date().getFullYear()}
+          </p>
         </div>
       </footer>
-    </main>
+    </div>
   );
 }
