@@ -9,8 +9,8 @@ export const metadata: Metadata = {
     title: "AI Project Showcase",
     description:
       "Vote for the most awesome AI projects built by kids!",
-    url: "https://beautifuldata.org",
-    siteName: "AI Project Showcase",
+    url: "https://thekidswillbealright.com",
+    siteName: "The Kids Will Be Alright",
     type: "website",
   },
 };
