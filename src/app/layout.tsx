@@ -1,19 +1,16 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
 import "./globals.css";
 
-const inter = Inter({ subsets: ["latin"] });
-
 export const metadata: Metadata = {
-  title: "Beautiful Data — Interactive Data Visualization Studio",
+  title: "AI Project Showcase - Vote for Awesome Kid Projects!",
   description:
-    "We turn research, policy documents, and corporate data into interactive web experiences that tell stories and drive decisions.",
+    "Discover and vote for the most creative AI-powered projects built by kids. Submit your own project and inspire others!",
   openGraph: {
-    title: "Beautiful Data",
+    title: "AI Project Showcase",
     description:
-      "Interactive data visualization for research & policy organizations.",
+      "Vote for the most awesome AI projects built by kids!",
     url: "https://beautifuldata.org",
-    siteName: "Beautiful Data",
+    siteName: "AI Project Showcase",
     type: "website",
   },
 };
@@ -24,10 +21,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className="dark">
-      <body
-        className={`${inter.className} bg-surface-0 text-gray-100 antialiased`}
-      >
+    <html lang="en">
+      <body className="text-gray-800 antialiased">
         {children}
       </body>
     </html>
